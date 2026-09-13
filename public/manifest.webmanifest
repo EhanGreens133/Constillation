@@ -1,0 +1,17 @@
+{
+  "name": "Constellation",
+  "short_name": "Constellation",
+  "description": "A personal archive. Capture works offline.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbfaf7",
+  "theme_color": "#8a6f36",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "name": "constellation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A personal archive. The export is the artifact; the app is the convenience.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint",
+    "indexes": "tsx scripts/ensure-indexes.ts",
+    "seed": "tsx scripts/seed.ts",
+    "session": "tsx scripts/mint-session.ts",
+    "export": "tsx scripts/export-cli.ts",
+    "verify:export": "tsx scripts/verify-export.ts",
+    "verify:viewer": "tsx scripts/verify-viewer.ts",
+    "verify:suggest": "tsx scripts/verify-suggest-wire.ts",
+    "smoke": "tsx scripts/smoke-http.ts",
+    "test": "tsx scripts/acceptance.ts",
+    "test:suggest": "tsx scripts/suggest-guardrails.ts",
+    "bench:layout": "tsx scripts/bench-layout.ts"
+  },
+  "dependencies": {
+    "mongodb": "^6.13.0",
+    "next": "^15.5.4",
+    "openai": "^7.15.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}
