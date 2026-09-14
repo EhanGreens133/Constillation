@@ -7,6 +7,9 @@
  *   npm run export -- working ./backups
  */
 
+import { loadEnv } from "./lib/load-env";
+loadEnv();
+
 import fs from "node:fs";
 import path from "node:path";
 import { buildExport, type Edition } from "../src/lib/export/build";

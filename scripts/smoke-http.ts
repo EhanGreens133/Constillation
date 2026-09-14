@@ -10,6 +10,9 @@
  * cookie rather than going through the magic link.
  */
 
+import { loadEnv } from "./lib/load-env";
+loadEnv();
+
 import { check, eq, info, section, summary } from "./lib/harness";
 import { SESSION_COOKIE, createSessionToken } from "../src/lib/auth";
 

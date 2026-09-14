@@ -33,6 +33,7 @@ to `.data/magic-link.txt`.
 Then, in rough order of value:
 
 ```bash
+npm run check          # is the config complete, and does it actually work?
 npm test               # the acceptance tests from the brief
 npm run verify:viewer  # runs the exported viewer against a minimal DOM
 npm run verify:export  # builds an export and reads it back out of the zip

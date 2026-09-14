@@ -10,6 +10,9 @@
  * all start with "[seed]" so you can find and delete them again.
  */
 
+import { loadEnv } from "./lib/load-env";
+loadEnv();
+
 import { syntheticBody } from "./lib/fixtures";
 import { getStore, resetStore } from "../src/lib/store";
 import { getArchive, putArchive } from "../src/lib/archive";

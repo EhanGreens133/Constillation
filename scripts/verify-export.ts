@@ -13,6 +13,9 @@
  * Do that part by hand, once, properly - it is the only test that matters.
  */
 
+import { loadEnv } from "./lib/load-env";
+loadEnv();
+
 import fs from "node:fs";
 import path from "node:path";
 import { check, info, section, summary } from "./lib/harness";

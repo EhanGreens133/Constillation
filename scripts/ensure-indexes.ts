@@ -11,6 +11,9 @@
  *   npm run indexes
  */
 
+import { loadEnv } from "./lib/load-env";
+loadEnv();
+
 import { getStore, resetStore } from "../src/lib/store";
 
 const store = await getStore();
