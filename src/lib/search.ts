@@ -2,6 +2,7 @@ import { getStore } from "./store";
 import type { Filter } from "./store/query";
 import { tokenize } from "./tfidf";
 import { excerpt } from "./format";
+import { wroteRecently } from "./recent-writes";
 import type { EntryDoc } from "./types";
 
 /**
@@ -89,10 +90,14 @@ export async function searchEntries(
   const scored = await store.textSearch(query, { limit, includePrivate });
   if (scored && scored.length === 0) {
     const status = await store.searchIndexStatus();
-    if (status === "ready") {
+    // A healthy index that found nothing is believed - but not in the seconds
+    // after a write, because Atlas Search is eventually consistent and the
+    // entry just captured may not be in it yet. Being told "no results" for
+    // something written a moment ago is the one failure this must not have.
+    if (status === "ready" && !wroteRecently()) {
       return { hits: [], engine: "atlas", took: Date.now() - started };
     }
-    warnAboutIndex(status);
+    if (status !== "ready") warnAboutIndex(status);
   }
   if (scored && scored.length > 0) {
     const byId = new Map(scored.map((s) => [s._id, s.score]));

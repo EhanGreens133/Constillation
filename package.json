@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "next lint",
     "check": "tsx scripts/check-env.ts",
+    "env:deploy": "tsx scripts/deploy-env.ts",
     "indexes": "tsx scripts/ensure-indexes.ts",
     "seed": "tsx scripts/seed.ts",
     "login": "tsx scripts/login.ts",

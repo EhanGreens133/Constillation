@@ -3,6 +3,7 @@ import type { Filter } from "./store/query";
 import { newId } from "./ids";
 import { isKind, type EntryDoc, type Kind, type RelatedBasis } from "./types";
 import { queueEmbedding } from "./embedding";
+import { noteWrite } from "./recent-writes";
 
 /**
  * Every write to `entries` goes through here.
@@ -91,10 +92,12 @@ export async function captureEntry(input: CaptureInput): Promise<EntryDoc> {
       { $set: { body: doc.body, private: doc.private, updatedAt: doc.updatedAt } },
     );
     if (updated && updated.body !== existing.body) queueEmbedding(doc._id, updated.body);
+    noteWrite();
     return updated ?? existing;
   }
 
   const saved = await store.entries.insert(doc);
+  noteWrite();
   queueEmbedding(saved._id, saved.body);
   return saved;
 }
@@ -192,6 +195,7 @@ export async function patchEntry(id: string, patch: EntryPatch): Promise<EntryDo
 
   const updated = await store.entries.updateOne({ _id: id }, { $set });
   if (!updated) throw new HttpError(404, "entry not found");
+  noteWrite();
   if (patch.body !== undefined) queueEmbedding(id, patch.body);
   return updated;
 }
@@ -209,6 +213,7 @@ export async function addReflection(id: string, text: string, at?: string): Prom
     },
   );
   if (!updated) throw new HttpError(404, "entry not found");
+  noteWrite();
   return updated;
 }
 
@@ -220,6 +225,9 @@ export async function softDeleteEntry(id: string): Promise<void> {
     { $set: { deletedAt: new Date(), updatedAt: new Date() } },
   );
   if (!updated) throw new HttpError(404, "entry not found");
+  // A deleted entry must stop appearing in results straight away, which the
+  // index will not reflect for a moment either.
+  noteWrite();
 }
 
 export async function restoreEntry(id: string): Promise<EntryDoc> {

@@ -9,6 +9,16 @@ import { useEffect, useRef, useState } from "react";
  * "Trouble signing in?" - it needs terminal access to the server, which makes
  * it a way back in that cannot be locked out or forgotten.
  */
+const setupBox: React.CSSProperties = {
+  background: "var(--bg-soft)",
+  padding: "0.7rem 0.9rem",
+  borderRadius: "var(--radius)",
+  fontSize: "0.9rem",
+  margin: "0 0 0.6rem",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-all",
+};
+
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [state, setState] = useState<"idle" | "signing" | "linkSent">("idle");
@@ -16,10 +26,14 @@ export default function LoginPage() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [devUrl, setDevUrl] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [isLocal, setIsLocal] = useState(true);
   const field = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     field.current?.focus();
+    // Decides which recovery instructions make sense: a terminal command only
+    // helps someone sitting at the machine running this.
+    setIsLocal(/^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname));
   }, []);
 
   async function signIn(ev: React.FormEvent) {
@@ -103,22 +117,30 @@ export default function LoginPage() {
 
         {needsSetup && (
           <>
-            <p className="note" style={{ marginTop: "1rem" }}>
-              Set one now — run this in the project folder, then come back:
-            </p>
-            <pre
-              style={{
-                background: "var(--bg-soft)",
-                padding: "0.7rem 0.9rem",
-                borderRadius: "var(--radius)",
-                fontSize: "0.9rem",
-                margin: 0,
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-all",
-              }}
-            >
-              npm run set-password
-            </pre>
+            {isLocal ? (
+              <>
+                <p className="note" style={{ marginTop: "1rem" }}>
+                  Set one now — run this in the project folder, then come back:
+                </p>
+                <pre style={setupBox}>npm run set-password</pre>
+              </>
+            ) : (
+              <>
+                {/* A deployed host has no project folder to run npm in. Its
+                    configuration is the only way in, and .env.local never
+                    leaves the machine it was written on. */}
+                <p className="note" style={{ marginTop: "1rem" }}>
+                  This server is configured by its environment, not by a file in the repository —{" "}
+                  <code>.env.local</code> is never deployed. Add this variable in your host&apos;s settings and
+                  redeploy:
+                </p>
+                <pre style={setupBox}>AUTH_PASSWORD_HASH=…</pre>
+                <p className="note">
+                  On the machine where you set the password, <code>npm run env:deploy</code> prints the value to paste,
+                  along with everything else this server needs.
+                </p>
+              </>
+            )}
           </>
         )}
       </form>
@@ -132,22 +154,14 @@ export default function LoginPage() {
       {showHelp && (
         <div className="card">
           <p style={{ marginTop: 0 }} className="note">
-            You can always get in from the machine running this, without the password:
+            {isLocal
+              ? "You can always get in from the machine running this, without the password:"
+              : "From a terminal on the machine running this server:"}
           </p>
-          <pre
-            style={{
-              background: "var(--bg-soft)",
-              padding: "0.7rem 0.9rem",
-              borderRadius: "var(--radius)",
-              fontSize: "0.9rem",
-              margin: "0 0 0.8rem",
-            }}
-          >
-            npm run login
-          </pre>
+          <pre style={setupBox}>npm run login</pre>
           <p className="note">
-            It prints a link that signs you in. To change the password:{" "}
-            <code>npm run set-password</code>.
+            It prints a link that signs you in. To change the password: <code>npm run set-password</code>
+            {isLocal ? "." : ", then update AUTH_PASSWORD_HASH in this host's settings and redeploy."}
           </p>
           <button type="button" onClick={() => void requestLink()}>
             Or generate one now

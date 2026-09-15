@@ -125,7 +125,17 @@ if (!uri) {
       say("ok", "entries collection", "not created yet - a fresh database, which is what you want");
       say("warn", "indexes", "nothing to inspect until `npm run indexes` has run once");
     } else {
-      say("ok", "entries collection", count === 0 ? "empty and ready" : `${count} documents already present`);
+      // Soft-deleted entries are still documents but appear in nothing, so
+      // reporting the raw count alone invites "why does it say 3?".
+      const live = await entries.countDocuments({ deletedAt: null });
+      const deleted = count - live;
+      say(
+        "ok",
+        "entries collection",
+        count === 0
+          ? "empty and ready"
+          : `${live} live${deleted > 0 ? `, ${deleted} soft-deleted (kept, but in no view or export)` : ""}`,
+      );
       const indexes = await entries.indexes();
       const named = indexes.map((i) => i.name).filter(Boolean) as string[];
       const wanted = ["cluster_when", "private", "deleted", "when_written"];

@@ -82,7 +82,10 @@ export async function POST(req: Request) {
   if (!passwordConfigured()) {
     return NextResponse.json(
       {
-        error: "No password is set yet. Run `npm run set-password` in the project folder, then sign in.",
+        // The wording stays neutral because this same server may be a laptop
+        // or a deployed host, and the fix is different for each. The page
+        // decides which instruction to show.
+        error: "No password is set on this server yet.",
         code: "no_password",
       },
       { status: 409 },

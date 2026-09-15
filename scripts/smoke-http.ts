@@ -77,7 +77,12 @@ const noBody = await json<{ error: string }>("/api/entries", { method: "POST", b
 eq("a missing body is refused", noBody.status, 400);
 
 section("Offline sync");
-const offlineId = Array.from({ length: 24 }, (_, i) => "0123456789abcdef"[(i * 7) % 16]).join("");
+// Fresh id per run. A fixed one meant the second run onwards hit the
+// idempotency path and kept the first run's body - which is correct
+// behaviour, but made this test quietly assert nothing.
+const offlineId =
+  Math.floor(Date.now() / 1000).toString(16).padStart(8, "0") +
+  Array.from({ length: 16 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
 const syncBody = {
   entries: [
     {
@@ -178,5 +183,12 @@ const removed = await json<{ ok: boolean; note: string }>(`/api/entries/${id}`, 
 check("DELETE soft deletes and says so", removed.body.ok && /soft deleted/.test(removed.body.note));
 const gone = await json(`/api/entries/${id}`);
 eq("the entry is no longer served", gone.status, 404);
+
+// This runs against whatever store the server is using - which may be the
+// author's real archive. Everything it created is removed again, so running
+// it does not slowly fill the archive with test entries.
+await json(`/api/entries/${offlineId}`, { method: "DELETE" });
+const leftover = await json<{ total: number }>(`/api/search?q=${unique}`);
+check("the test left nothing behind in the archive", (leftover.body as unknown as { hits: unknown[] }).hits.length === 0);
 
 summary();
