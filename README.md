@@ -190,8 +190,23 @@ none.
 
 ### Auth is single-user, and the gate is in the Node runtime
 
-One account. Magic link, delivered to the server console, a file, or a webhook
-you control — no third party has to still be in business for you to sign in.
+One account, one password:
+
+```bash
+npm run set-password      # asks twice, hidden; stores a scrypt hash, never the password
+npm run login             # prints a sign-in link, for when the password is forgotten
+```
+
+The password is hashed with scrypt (N=16384, ~60ms per attempt) and only the
+hash is written to `.env.local`. The hash uses `:` separators rather than the
+conventional `$`, because Next.js runs `.env.local` through dotenv-expand and
+`$16384` would be read as a variable reference and silently vanish — turning
+every correct password into a wrong one with nothing in any log to explain it.
+Sign-in failures are rate limited to ten per ten minutes.
+
+`npm run login` is the way back in that cannot be locked out: it needs access
+to the machine running the server, which the author has by definition. No
+third party has to still be in business for you to sign in.
 
 `src/middleware.ts` only routes: it checks that a session cookie is *present*
 and redirects to `/login` if not. It does not verify the signature, because the

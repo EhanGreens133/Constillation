@@ -13,6 +13,21 @@ import { env } from "./env";
  */
 
 export const SESSION_COOKIE = "constellation_session";
+
+/**
+ * Sanitises a post-sign-in redirect target.
+ *
+ * "starts with a slash" is not enough: "//evil.com" and "/\evil.com" are both
+ * protocol-relative URLs that browsers resolve to another origin, so a link
+ * to /login?next=//evil.com would hand a freshly authenticated author
+ * straight to somebody else's site.
+ */
+export function safeNext(next: string | null | undefined, fallback = "/"): string {
+  if (!next) return fallback;
+  if (!next.startsWith("/")) return fallback;
+  if (next.startsWith("//") || next.startsWith("/\\")) return fallback;
+  return next;
+}
 const SESSION_TTL_S = 60 * 60 * 24 * 90;
 const LINK_TTL_S = 60 * 15;
 

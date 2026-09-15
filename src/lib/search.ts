@@ -22,6 +22,22 @@ export interface SearchHit {
 
 const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+let warnedAbout: string | null = null;
+function warnAboutIndex(status: "missing" | "building" | "unknown"): void {
+  if (warnedAbout === status) return;
+  warnedAbout = status;
+  const why =
+    status === "missing"
+      ? "does not exist - run `npm run indexes`"
+      : status === "building"
+        ? "is still building; it will start being used on its own"
+        : "could not be inspected";
+  console.warn(
+    `[search] Atlas Search returned nothing and the index ${why}. ` +
+      `Answering from a direct scan meanwhile, so no entry is missed.`,
+  );
+}
+
 function countOccurrences(haystack: string, needle: string): number {
   if (!needle) return 0;
   let count = 0;
@@ -62,8 +78,23 @@ export async function searchEntries(
   const phrase = query.toLowerCase();
 
   // --- Atlas Search -------------------------------------------------------
+  //
+  // Atlas answers a query against an index that does not exist, or is still
+  // building, with zero rows and no error - indistinguishable from a genuine
+  // miss, and silently returning nothing is the worst failure an archive can
+  // have. So an empty result is only believed when the index is confirmed
+  // READY; otherwise we scan for ourselves. Asking about the index is cached,
+  // which also means a healthy archive never pays for a fallback scan just
+  // because a search legitimately matched nothing.
   const scored = await store.textSearch(query, { limit, includePrivate });
-  if (scored) {
+  if (scored && scored.length === 0) {
+    const status = await store.searchIndexStatus();
+    if (status === "ready") {
+      return { hits: [], engine: "atlas", took: Date.now() - started };
+    }
+    warnAboutIndex(status);
+  }
+  if (scored && scored.length > 0) {
     const byId = new Map(scored.map((s) => [s._id, s.score]));
     const docs = await store.entries.find(
       { _id: { $in: scored.map((s) => s._id) } },

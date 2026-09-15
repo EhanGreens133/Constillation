@@ -48,6 +48,13 @@ export interface Store {
     vector: number[],
     opts: { limit: number; excludeId?: string },
   ): Promise<ScoredId[] | null>;
+  /**
+   * Whether the text index is actually usable. Atlas answers a query against
+   * a missing or still-building index with zero rows and no error, so an
+   * empty result alone cannot be trusted - this is how the caller tells
+   * "nothing matched" apart from "nothing could match".
+   */
+  searchIndexStatus(): Promise<"ready" | "missing" | "building" | "unknown">;
   ensureIndexes(): Promise<string[]>;
   flush(): Promise<void>;
   close(): Promise<void>;

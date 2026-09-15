@@ -1,79 +1,175 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * One account, one sign-in method. A link is generated and delivered wherever
- * the author configured it - by default to the server's own console and
- * .data/magic-link.txt, which is enough for a self-hosted single-user box and
- * depends on no third party staying in business.
+ * Sign in.
+ *
+ * One account, one password box. The magic-link flow still exists behind
+ * "Trouble signing in?" - it needs terminal access to the server, which makes
+ * it a way back in that cannot be locked out or forgotten.
  */
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
-  const [devUrl, setDevUrl] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
+  const [state, setState] = useState<"idle" | "signing" | "linkSent">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [devUrl, setDevUrl] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
 
-  async function requestLink(ev: React.FormEvent) {
+  useEffect(() => {
+    field.current?.focus();
+  }, []);
+
+  async function signIn(ev: React.FormEvent) {
     ev.preventDefault();
-    setState("sending");
+    if (!password) return;
+    setState("signing");
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      // A proxy error or an HTML error page is not JSON. Parsing it before
+      // checking res.ok would show the author a SyntaxError instead of what
+      // actually went wrong.
+      const raw = await res.text();
+      let body: { ok?: boolean; error?: string; code?: string } = {};
+      try {
+        body = JSON.parse(raw) as typeof body;
+      } catch {
+        body = {};
+      }
+      if (!res.ok) {
+        if (body.code === "no_password") setNeedsSetup(true);
+        throw new Error(body.error ?? `Sign-in failed (${res.status} ${res.statusText || "error"}).`);
+      }
+      // Full navigation, so the session cookie is on the very first request.
+      // "/" unless the redirect target is a plain same-site path: "//evil.com"
+      // starts with a slash but is another origin.
+      const next = new URLSearchParams(window.location.search).get("next");
+      const safe = next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/";
+      window.location.href = safe;
+    } catch (err) {
+      setError((err as Error).message);
+      setState("idle");
+      setPassword("");
+      field.current?.focus();
+    }
+  }
+
+  async function requestLink() {
     setError(null);
     try {
       const res = await fetch("/api/auth/request", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({}),
       });
-      const body = (await res.json()) as { ok?: boolean; url?: string; delivered?: string; error?: string };
-      if (!res.ok) throw new Error(body.error ?? `request failed (${res.status})`);
+      const body = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok) throw new Error(body.error ?? "could not generate a link");
       setDevUrl(body.url ?? null);
-      setState("sent");
+      setState("linkSent");
     } catch (err) {
       setError((err as Error).message);
-      setState("idle");
     }
   }
 
   return (
-    <main style={{ maxWidth: "28rem", margin: "12vh auto 0" }}>
+    <main style={{ maxWidth: "26rem", margin: "12vh auto 0" }}>
       <h1>Constellation</h1>
       <p className="lede">Your archive. One account, yours.</p>
 
-      {state === "sent" ? (
+      <form className="card" onSubmit={signIn}>
+        <div className="field">
+          <span className="label">Password</span>
+          <input
+            ref={field}
+            type="password"
+            value={password}
+            autoComplete="current-password"
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+          />
+        </div>
+        <button className="primary" type="submit" disabled={state === "signing" || !password}>
+          {state === "signing" ? "Signing in…" : "Sign in"}
+        </button>
+
+        {error && <p className="err">{error}</p>}
+
+        {needsSetup && (
+          <>
+            <p className="note" style={{ marginTop: "1rem" }}>
+              Set one now — run this in the project folder, then come back:
+            </p>
+            <pre
+              style={{
+                background: "var(--bg-soft)",
+                padding: "0.7rem 0.9rem",
+                borderRadius: "var(--radius)",
+                fontSize: "0.9rem",
+                margin: 0,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all",
+              }}
+            >
+              npm run set-password
+            </pre>
+          </>
+        )}
+      </form>
+
+      <p className="note" style={{ marginTop: "1.2rem" }}>
+        <button type="button" className="ghost" onClick={() => setShowHelp(!showHelp)}>
+          Trouble signing in?
+        </button>
+      </p>
+
+      {showHelp && (
         <div className="card">
-          <p style={{ marginTop: 0 }}>A sign-in link has been generated. It is valid for 15 minutes.</p>
-          <p className="note">
-            Depending on how you configured delivery, it is in the server log, in <code>.data/magic-link.txt</code>, or
-            it has been posted to your webhook.
+          <p style={{ marginTop: 0 }} className="note">
+            You can always get in from the machine running this, without the password:
           </p>
-          {devUrl && (
-            <p style={{ wordBreak: "break-all" }}>
-              <a href={devUrl}>Sign in on this device</a>
+          <pre
+            style={{
+              background: "var(--bg-soft)",
+              padding: "0.7rem 0.9rem",
+              borderRadius: "var(--radius)",
+              fontSize: "0.9rem",
+              margin: "0 0 0.8rem",
+            }}
+          >
+            npm run login
+          </pre>
+          <p className="note">
+            It prints a link that signs you in. To change the password:{" "}
+            <code>npm run set-password</code>.
+          </p>
+          <button type="button" onClick={() => void requestLink()}>
+            Or generate one now
+          </button>
+          {state === "linkSent" && (
+            <p className="note" style={{ marginTop: "0.8rem" }}>
+              {devUrl ? (
+                <a href={devUrl} style={{ wordBreak: "break-all" }}>
+                  Sign in on this device
+                </a>
+              ) : (
+                <>
+                  Generated. It is in the server console and in <code>.data/magic-link.txt</code>.
+                </>
+              )}
             </p>
           )}
-          <button onClick={() => setState("idle")}>Request another</button>
         </div>
-      ) : (
-        <form className="card" onSubmit={requestLink}>
-          <div className="field">
-            <span className="label">Email (optional, only used to check it is you)</span>
-            <input
-              type="email"
-              value={email}
-              autoComplete="email"
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-            />
-          </div>
-          <button className="primary" type="submit" disabled={state === "sending"}>
-            {state === "sending" ? "Generating…" : "Send me a sign-in link"}
-          </button>
-          {error && <p className="err">{error}</p>}
-        </form>
       )}
 
       <p className="note" style={{ marginTop: "1.6rem" }}>
-        The archive itself does not depend on this. Exported copies open with no account and no server.
+        The archive itself does not depend on any of this. Exported copies open with no account and no server.
       </p>
     </main>
   );

@@ -187,6 +187,9 @@ export function createFileStore(dir: string): Store {
     async vectorSearch(): Promise<ScoredId[] | null> {
       return null; // no Atlas Vector Search here; caller brute-forces or uses TF-IDF
     },
+    async searchIndexStatus(): Promise<"missing"> {
+      return "missing"; // textSearch already returns null, so this is never consulted
+    },
     async ensureIndexes(): Promise<string[]> {
       return ["file backend: no indexes to create"];
     },

@@ -16,7 +16,15 @@ import { SESSION_COOKIE } from "./lib/auth-edge";
  * rendering a shell that cannot load anything.
  */
 
-const PUBLIC_PATHS = ["/login", "/api/auth/request", "/api/auth/verify", "/api/health"];
+// The sign-in endpoints must be reachable without a session, or there is no
+// way to ever get one.
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/auth/login",
+  "/api/auth/request",
+  "/api/auth/verify",
+  "/api/health",
+];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

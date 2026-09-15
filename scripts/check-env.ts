@@ -50,6 +50,26 @@ if (!secret) {
   say("ok", "AUTH_SECRET", `set, ${secret.length} characters`);
 }
 
+const passwordHash = (process.env.AUTH_PASSWORD_HASH ?? "").trim();
+const plainPassword = (process.env.AUTH_PASSWORD ?? "").trim();
+if (passwordHash) {
+  // A hash that lost its "$"-separated parts to .env expansion looks like
+  // this: "scrypt". Every password would then be rejected with no clue why.
+  if (/^scrypt:\d+:\d+:\d+:[0-9a-f]{32}:[0-9a-f]{64}$/.test(passwordHash)) {
+    say("ok", "AUTH_PASSWORD_HASH", "set and well formed");
+  } else {
+    say(
+      "blocked",
+      "AUTH_PASSWORD_HASH",
+      `malformed ("${passwordHash.slice(0, 24)}…") - re-run \`npm run set-password\``,
+    );
+  }
+} else if (plainPassword) {
+  say("warn", "AUTH_PASSWORD", `set in plain text (${plainPassword.length} chars) - \`npm run set-password\` stores a hash instead`);
+} else {
+  say("warn", "password", "none set - sign in with `npm run login` until you run `npm run set-password`");
+}
+
 const origin = (process.env.APP_ORIGIN ?? "").trim();
 if (!origin) say("warn", "APP_ORIGIN", "not set - sign-in links will point at http://localhost:3000");
 else if (!/^https?:\/\//.test(origin)) say("blocked", "APP_ORIGIN", `"${origin}" is not a URL`);

@@ -17,6 +17,14 @@ export const env = {
   get authorEmail(): string {
     return str(process.env.AUTHOR_EMAIL);
   },
+  /** Written by `npm run set-password`. */
+  get authPasswordHash(): string {
+    return str(process.env.AUTH_PASSWORD_HASH);
+  },
+  /** Plain-text alternative, for hosts where running a script is awkward. */
+  get authPassword(): string {
+    return str(process.env.AUTH_PASSWORD);
+  },
   get magicLinkDelivery(): "console" | "webhook" {
     return str(process.env.MAGIC_LINK_DELIVERY, "console") === "webhook" ? "webhook" : "console";
   },

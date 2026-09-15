@@ -202,6 +202,7 @@ export async function createMongoStore(uri: string, dbName: string): Promise<Sto
   // index is a permanent condition for this process, not a transient error.
   let textOk = !!env.atlasSearchIndex;
   let vectorOk = !!env.atlasVectorIndex;
+  let indexStatus: { value: "ready" | "missing" | "building" | "unknown"; at: number } | null = null;
 
   return {
     backend: "mongo",
@@ -272,6 +273,28 @@ export async function createMongoStore(uri: string, dbName: string): Promise<Sto
         console.warn("[store] Atlas Vector Search unavailable, falling back to TF-IDF:", (err as Error).message);
         return null;
       }
+    },
+
+    async searchIndexStatus(): Promise<"ready" | "missing" | "building" | "unknown"> {
+      if (!env.atlasSearchIndex) return "missing";
+      const now = Date.now();
+      // Cached briefly rather than permanently: an index created or finished
+      // building while the server is up should start being used on its own.
+      if (indexStatus && now - indexStatus.at < 60_000) return indexStatus.value;
+      let value: "ready" | "missing" | "building" | "unknown" = "unknown";
+      try {
+        const found = await db
+          .collection("entries")
+          .listSearchIndexes(env.atlasSearchIndex)
+          .toArray();
+        if (found.length === 0) value = "missing";
+        else value = (found[0] as { status?: string }).status === "READY" ? "ready" : "building";
+      } catch {
+        // Not Atlas, or the command is unavailable. Either way we cannot know.
+        value = "unknown";
+      }
+      indexStatus = { value, at: now };
+      return value;
     },
 
     async ensureIndexes(): Promise<string[]> {
