@@ -1,5 +1,5 @@
 import type { Filter, Sort, UpdateOps } from "./query";
-import type { ArchiveDoc, ClusterDoc, EntryDoc } from "../types";
+import type { ArchiveDoc, ClusterDoc, EntryDoc, SettingsDoc } from "../types";
 
 export interface FindOpts {
   sort?: Sort;
@@ -38,6 +38,8 @@ export interface Store {
   entries: Collection<EntryDoc>;
   clusters: Collection<ClusterDoc>;
   archive: Collection<ArchiveDoc>;
+  /** Operational settings only. Never exported. */
+  settings: Collection<SettingsDoc>;
   /** Atlas Search. null when no search index is configured -> caller falls back. */
   textSearch(
     q: string,
@@ -64,6 +66,7 @@ export const DATE_PATHS: Record<string, string[]> = {
   entries: ["whenWritten", "createdAt", "updatedAt", "deletedAt", "reflections.at"],
   clusters: [],
   archive: ["updatedAt"],
+  settings: ["updatedAt"],
 };
 
 /** Fields holding ids, for ObjectId conversion at the Mongo boundary. */
@@ -71,4 +74,5 @@ export const ID_PATHS: Record<string, string[]> = {
   entries: ["_id", "clusterId", "related.entryId"],
   clusters: ["_id"],
   archive: [],
+  settings: [],
 };

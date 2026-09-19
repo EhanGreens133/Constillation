@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { applyUpdate, matches, project, sortDocs, type Filter, type UpdateOps } from "./query";
 import { DATE_PATHS, type Collection, type FindOpts, type ScoredId, type Store } from "./types";
-import type { ArchiveDoc, ClusterDoc, EntryDoc } from "../types";
+import type { ArchiveDoc, ClusterDoc, EntryDoc, SettingsDoc } from "../types";
 import { newId } from "../ids";
 
 /**
@@ -15,6 +15,17 @@ import { newId } from "../ids";
  * callers onto the lexical/TF-IDF paths - the same paths that run when Atlas
  * is configured but unreachable.
  */
+
+let warnedFiles = new Set<string>();
+function warnOnce(file: string, err: Error): void {
+  if (warnedFiles.has(file)) return;
+  warnedFiles.add(file);
+  console.error(
+    `[store] Could not write ${file}: ${err.message}\n` +
+      `        Entries are being held in memory only and will be lost when this process ends.\n` +
+      `        On a hosted platform the filesystem is read-only - set MONGODB_URI.`,
+  );
+}
 
 function reviveDates(doc: any, paths: string[]): any {
   for (const p of paths) {
@@ -70,10 +81,18 @@ class FileCollection<T extends { _id: string }> implements Collection<T> {
     this.dirty = false;
     const snapshot = JSON.stringify(this.docs);
     this.writing = this.writing.then(async () => {
-      await fs.promises.mkdir(path.dirname(this.file), { recursive: true });
-      const tmp = `${this.file}.${process.pid}.tmp`;
-      await fs.promises.writeFile(tmp, snapshot, "utf8");
-      await fs.promises.rename(tmp, this.file);
+      try {
+        await fs.promises.mkdir(path.dirname(this.file), { recursive: true });
+        const tmp = `${this.file}.${process.pid}.tmp`;
+        await fs.promises.writeFile(tmp, snapshot, "utf8");
+        await fs.promises.rename(tmp, this.file);
+      } catch (err) {
+        // A hosted platform usually has a read-only filesystem, so this
+        // backend cannot work there at all. Fail loudly and keep the chain
+        // alive: an unhandled rejection here would take the process down and
+        // say nothing useful about why.
+        warnOnce(this.file, err as Error);
+      }
     });
     return this.writing;
   }
@@ -175,12 +194,14 @@ export function createFileStore(dir: string): Store {
   const entries = new FileCollection<EntryDoc>(path.join(dir, "entries.json"), DATE_PATHS.entries);
   const clusters = new FileCollection<ClusterDoc>(path.join(dir, "clusters.json"), DATE_PATHS.clusters);
   const archive = new FileCollection<ArchiveDoc>(path.join(dir, "archive.json"), DATE_PATHS.archive);
+  const settings = new FileCollection<SettingsDoc>(path.join(dir, "settings.json"), DATE_PATHS.settings);
 
   return {
     backend: "file",
     entries,
     clusters,
     archive,
+    settings,
     async textSearch(): Promise<ScoredId[] | null> {
       return null; // no Atlas Search here; caller uses the lexical scan
     },
@@ -194,7 +215,7 @@ export function createFileStore(dir: string): Store {
       return ["file backend: no indexes to create"];
     },
     async flush(): Promise<void> {
-      await Promise.all([entries.flush(), clusters.flush(), archive.flush()]);
+      await Promise.all([entries.flush(), clusters.flush(), archive.flush(), settings.flush()]);
     },
     async close(): Promise<void> {
       await this.flush();

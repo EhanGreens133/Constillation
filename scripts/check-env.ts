@@ -52,7 +52,28 @@ if (!secret) {
 
 const passwordHash = (process.env.AUTH_PASSWORD_HASH ?? "").trim();
 const plainPassword = (process.env.AUTH_PASSWORD ?? "").trim();
-if (passwordHash) {
+// The database is the primary home for the password, so look there first -
+// otherwise this reports "none set" for a perfectly working setup.
+const dbHash = await (async () => {
+  if (!process.env.MONGODB_URI) return "";
+  try {
+    const { readStoredHash } = await import("../src/lib/password");
+    return await readStoredHash();
+  } catch {
+    return "";
+  }
+})();
+
+if (dbHash) {
+  say(
+    "ok",
+    "password",
+    "set in the database - applies to every deployment using it, with no environment variables",
+  );
+  if (passwordHash) {
+    say("warn", "AUTH_PASSWORD_HASH", "also set in the environment, but the database takes precedence");
+  }
+} else if (passwordHash) {
   // A hash that lost its "$"-separated parts to .env expansion looks like
   // this: "scrypt". Every password would then be rejected with no clue why.
   if (/^scrypt:\d+:\d+:\d+:[0-9a-f]{32}:[0-9a-f]{64}$/.test(passwordHash)) {

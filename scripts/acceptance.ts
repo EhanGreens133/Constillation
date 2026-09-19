@@ -253,6 +253,23 @@ check("the README tells a non-technical reader what to open", readme.includes("a
 check("the README names the plain-text fallback", /if that page ever stops working/i.test(readme));
 check("the zip carries a build timestamp", readme.includes(result.bundle.builtAt.slice(0, 10)) && html.includes(result.bundle.builtAt));
 
+// --- the password must never reach an exported file -----------------------
+// The hash lives in `settings`, which the exporter does not read at all. This
+// asserts that rather than trusting it: a password hash travelling inside a
+// file handed to someone's family would be a serious leak.
+const { writeStoredHash, readStoredHash } = await import("../src/lib/password");
+const { hashPassword } = await import("../src/lib/password");
+const secretHash = hashPassword("a-password-for-the-export-test");
+await writeStoredHash(secretHash);
+check("the hash was stored", (await readStoredHash()) === secretHash);
+const leakCheck = await buildExport("working");
+const everyFile = unzip(leakCheck.zip)
+  .map((f) => f.data.toString("utf8"))
+  .join("\n");
+check("no password hash in any exported file", !everyFile.includes(secretHash));
+check("not even the scrypt marker", !/scrypt:\d+:\d+:\d+:/.test(everyFile));
+check("and no settings collection in the JSON", !everyFile.includes("passwordHash"));
+
 // --- the recorded opening message ----------------------------------------
 // A recording has to travel inside the file, with no service behind it: it is
 // base64'd into archive.html and written alongside as a playable file.

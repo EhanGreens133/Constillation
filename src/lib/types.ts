@@ -88,6 +88,18 @@ export interface ClusterDoc {
   order: number;
 }
 
+/**
+ * Operational settings. Deliberately a separate collection from `archive`:
+ * `archive` is part of the exported artifact, and a password hash must never
+ * be able to travel inside a file the author hands to their family.
+ * Nothing in here is ever exported.
+ */
+export interface SettingsDoc {
+  _id: string;
+  passwordHash?: string;
+  updatedAt: Date;
+}
+
 export interface ArchiveDoc {
   _id: string;
   title: string;

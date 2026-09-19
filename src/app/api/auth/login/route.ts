@@ -79,7 +79,7 @@ function clearSlots(key: string): void {
 }
 
 export async function POST(req: Request) {
-  if (!passwordConfigured()) {
+  if (!(await passwordConfigured())) {
     return NextResponse.json(
       {
         // The wording stays neutral because this same server may be a laptop

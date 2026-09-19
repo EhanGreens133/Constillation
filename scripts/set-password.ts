@@ -68,21 +68,41 @@ if (password.length < MIN) {
 }
 
 const hash = hashPassword(password);
-const file = path.join(process.cwd(), ".env.local");
-const line = `AUTH_PASSWORD_HASH=${hash}`;
 
-let contents = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
-if (/^AUTH_PASSWORD_HASH=.*$/m.test(contents)) {
-  contents = contents.replace(/^AUTH_PASSWORD_HASH=.*$/m, line);
-  console.log("\nPassword changed.");
+/**
+ * Default target is the database, because that is the one thing a laptop and
+ * a deployed app already share. Setting it there works in both places at
+ * once - no environment variables to copy, no redeploy, nothing to get out of
+ * step. `--local` writes to .env.local instead, for running without a
+ * database at all.
+ */
+const toLocalFile = process.argv.includes("--local") || !process.env.MONGODB_URI;
+
+if (!toLocalFile) {
+  const { writeStoredHash } = await import("../src/lib/password");
+  const { resetStore } = await import("../src/lib/store");
+  await writeStoredHash(hash);
+  await resetStore();
+  console.log("\nPassword set, in the database.");
+  console.log(`Stored in the "settings" collection as a scrypt hash; the password itself is not stored,`);
+  console.log("and nothing in that collection is ever part of an export.");
+  console.log("\nIt applies everywhere that database is used - this machine and your deployed app -");
+  console.log("immediately. No redeploy, no environment variables.\n");
 } else {
-  const eol = contents.includes("\r\n") ? "\r\n" : "\n";
-  if (contents && !contents.endsWith("\n")) contents += eol;
-  contents += `${eol}# Set by \`npm run set-password\`. The password itself is not stored.${eol}${line}${eol}`;
-  console.log("\nPassword set.");
+  const file = path.join(process.cwd(), ".env.local");
+  const line = `AUTH_PASSWORD_HASH=${hash}`;
+  let contents = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+  if (/^AUTH_PASSWORD_HASH=.*$/m.test(contents)) {
+    contents = contents.replace(/^AUTH_PASSWORD_HASH=.*$/m, line);
+    console.log("\nPassword changed.");
+  } else {
+    const eol = contents.includes("\r\n") ? "\r\n" : "\n";
+    if (contents && !contents.endsWith("\n")) contents += eol;
+    contents += `${eol}# Set by \`npm run set-password\`. The password itself is not stored.${eol}${line}${eol}`;
+    console.log("\nPassword set.");
+  }
+  fs.writeFileSync(file, contents, "utf8");
+  console.log(`Written to ${path.relative(process.cwd(), file)} as a scrypt hash.`);
+  console.log("\nRestart the server so it picks this up, then sign in at /login:\n");
+  console.log("  npm run build && npm start      (or: npm run dev)\n");
 }
-fs.writeFileSync(file, contents, "utf8");
-
-console.log(`Written to ${path.relative(process.cwd(), file)} as a scrypt hash (the password itself is not stored).`);
-console.log("\nRestart the server so it picks this up, then sign in at /login:\n");
-console.log("  npm run build && npm start      (or: npm run dev)\n");

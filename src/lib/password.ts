@@ -80,15 +80,54 @@ async function verifyPasswordAsync(password: string, stored: string): Promise<bo
   }
 }
 
+export const SETTINGS_ID = "auth";
+
 /**
- * The configured password, in order of preference:
- *   AUTH_PASSWORD_HASH - what `npm run set-password` writes
- *   AUTH_PASSWORD      - plain text, for hosts where running a script is
- *                        awkward. It does sit in readable configuration, so
- *                        the hash is better.
+ * The password hash kept in the database.
+ *
+ * This is the primary place, because it is the one piece of configuration
+ * that is already shared between the author's machine and wherever the app
+ * is deployed. Setting it once works everywhere, with no environment
+ * variables to propagate and no redeploy.
+ *
+ * It lives in `settings`, never in `archive`, so it cannot travel inside an
+ * exported copy of the archive.
+ */
+export async function readStoredHash(): Promise<string> {
+  try {
+    const { getStore } = await import("./store");
+    const store = await getStore();
+    const doc = await store.settings.findOne({ _id: SETTINGS_ID });
+    return (doc?.passwordHash ?? "").trim();
+  } catch {
+    // An unreachable database must not make the environment fallback
+    // unreachable too.
+    return "";
+  }
+}
+
+export async function writeStoredHash(hash: string): Promise<void> {
+  const { getStore } = await import("./store");
+  const store = await getStore();
+  const existing = await store.settings.findOne({ _id: SETTINGS_ID });
+  if (existing) {
+    await store.settings.update({ _id: SETTINGS_ID }, { $set: { passwordHash: hash, updatedAt: new Date() } });
+  } else {
+    await store.settings.insert({ _id: SETTINGS_ID, passwordHash: hash, updatedAt: new Date() });
+  }
+  await store.flush();
+}
+
+/**
+ * Where the password comes from, in order:
+ *   the database       - set once, works everywhere, survives redeploys
+ *   AUTH_PASSWORD_HASH - environment, for hosts with no database
+ *   AUTH_PASSWORD      - plain text, last resort
  */
 export async function checkPassword(password: string): Promise<boolean> {
   if (!password) return false;
+  const stored = await readStoredHash();
+  if (stored) return verifyPasswordAsync(password, stored);
   const hash = env.authPasswordHash;
   if (hash) return verifyPasswordAsync(password, hash);
   const plain = env.authPassword;
@@ -103,6 +142,15 @@ export async function checkPassword(password: string): Promise<boolean> {
   return false;
 }
 
-export function passwordConfigured(): boolean {
-  return !!env.authPasswordHash || !!env.authPassword;
+export async function passwordConfigured(): Promise<boolean> {
+  if (env.authPasswordHash || env.authPassword) return true;
+  return !!(await readStoredHash());
+}
+
+/** For diagnostics: which of the three sources is actually in use. */
+export async function passwordSource(): Promise<"database" | "AUTH_PASSWORD_HASH" | "AUTH_PASSWORD" | "nothing"> {
+  if (await readStoredHash()) return "database";
+  if (env.authPasswordHash) return "AUTH_PASSWORD_HASH";
+  if (env.authPassword) return "AUTH_PASSWORD";
+  return "nothing";
 }

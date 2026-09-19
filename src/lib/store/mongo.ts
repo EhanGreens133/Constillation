@@ -7,7 +7,7 @@ import {
   type ScoredId,
   type Store,
 } from "./types";
-import type { ArchiveDoc, ClusterDoc, EntryDoc } from "../types";
+import type { ArchiveDoc, ClusterDoc, EntryDoc, SettingsDoc } from "../types";
 import { newId } from "../ids";
 import { env } from "../env";
 
@@ -197,6 +197,7 @@ export async function createMongoStore(uri: string, dbName: string): Promise<Sto
   const entries = new MongoCollection<EntryDoc>(db, "entries");
   const clusters = new MongoCollection<ClusterDoc>(db, "clusters");
   const archive = new MongoCollection<ArchiveDoc>(db, "archive");
+  const settings = new MongoCollection<SettingsDoc>(db, "settings");
 
   // Once a search feature has failed we stop asking for it: a missing Atlas
   // index is a permanent condition for this process, not a transient error.
@@ -209,6 +210,7 @@ export async function createMongoStore(uri: string, dbName: string): Promise<Sto
     entries,
     clusters,
     archive,
+    settings,
 
     async textSearch(q, opts): Promise<ScoredId[] | null> {
       if (!textOk) return null;
